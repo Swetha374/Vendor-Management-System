@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <style type="text/css">
+        *{
+            box-sizing: border-box;
+        }
+        body{
+            background-color:white;
+        }
+        .admin-link{
+            //border:1px solid black;
+            margin:2vw;
+            padding:2vw;
+            border-radius: 4px;
+            min-width: 15vw;
+            display: flex;
+            justify-content: center;
+            background-color:rgb(70, 70, 70);
+        }
+        .admin-link:hover{
+            box-shadow:1px 1px 5px 0px rgba(0,0,0,0.75);
+
+        }
+
+        .api-doc-link{
+            //border:1px solid black;
+            margin:2vw;
+            padding:2vw;
+            border-radius: 4px;
+            min-width: 15vw;
+            display: flex;
+            justify-content: center;
+            background-color:rgb(70, 70, 70);
+        }
+        .api-doc-link:hover{
+            box-shadow:1px 1px 5px 0px rgba(0,0,0,0.75);
+
+        }
+        .container{
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height:100vh;
+            width: 100vw;
+            color: white;
+            text-decoration: bold;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+
+    </style>
+    <title>Vendor Management System Backend</title>
+</head>
+<body>
+    <div class="container">
+        <div class="admin-link" onclick="window.location.href='api/admin/'">Admin</div>
+        <div class="api-doc-link" onclick="window.location.href='api/docs/'">API - Docs</div>
+    </div>
+</body>
+</html>
