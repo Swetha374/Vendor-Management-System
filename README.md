@@ -24,7 +24,7 @@ The Vendor Management System is a web application designed to manage vendors and
 4.Run the server:
    python manage.py runserver
 
-Usage
+## Usage
 Access the application:
    Open your web browser and navigate to http://localhost:8000.
 Authentication:
