@@ -1,9 +1,10 @@
 from rest_framework import generics
-from .models import Vendor, PurchaseOrder
+from .models import Vendor, PurchaseOrder, HistoricalPerformance
 from .serializers import (
     VendorSerializer,
     PurchaseOrderSerializer,
     UserCredentialsSerializer,
+    HistoricalPerformanceSerializer,
 )
 from rest_framework.response import Response
 from django.db.models import Avg, F
@@ -15,14 +16,13 @@ from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
-from django.http import JsonResponse
+from rest_framework.status import HTTP_400_BAD_REQUEST
 
 
 # vendor
 class VendorListCreateAPIView(generics.ListCreateAPIView):
     """
     List and create vendors.
-
     Retrieves a list of all vendors or creates a new vendor.
     """
 
@@ -37,7 +37,6 @@ class VendorListCreateAPIView(generics.ListCreateAPIView):
 class VendorRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     """
     Retrieve, update, or delete a vendor.
-
     Retrieves, updates, or deletes a specific vendor by its ID.
     """
 
@@ -54,7 +53,6 @@ class VendorRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
 class PurchaseOrderListCreateAPIView(generics.ListCreateAPIView):
     """
     List and create purchase orders.
-
     Retrieves a list of all purchase orders or creates a new purchase order.
     """
 
@@ -69,7 +67,6 @@ class PurchaseOrderListCreateAPIView(generics.ListCreateAPIView):
 class PurchaseOrderRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     """
     Retrieve, update, or delete a purchase order.
-
     Retrieves, updates, or deletes a specific purchase order by its ID.
     """
 
@@ -116,37 +113,72 @@ class VendorPerformanceAPIView(generics.RetrieveAPIView):
         quality rating average, average response time, and fulfillment rate.
         """
         total_orders = vendor.purchase_orders.count()
+        acknowledged_orders = vendor.purchase_orders.filter(
+            acknowledgment_date__isnull=False
+        ).count()  # Filter only acknowledged orders
+        if total_orders == 0:
+            return {
+                "on_time_delivery_rate": 0,
+                "quality_rating_avg": 0,
+                "average_response_time": 0,
+                "fulfillment_rate": 0,
+            }
+
+        # Calculate metrics based on acknowledged orders
         on_time_orders = vendor.purchase_orders.filter(
             status="completed", delivery_date__lt=F("acknowledgment_date")
         ).count()
-        # On-Time Delivery Rate
         on_time_delivery_rate = (
-            (on_time_orders / total_orders) * 100 if total_orders > 0 else 0
+            (on_time_orders / acknowledged_orders) * 100
+            if acknowledged_orders > 0
+            else 0
         )
-        # Quality Rating Average
+
         avg_quality_rating = (
-            vendor.purchase_orders.filter(quality_rating__isnull=False).aggregate(
-                avg_quality=Avg("quality_rating")
-            )["avg_quality"]
+            vendor.purchase_orders.filter(
+                quality_rating__isnull=False, acknowledgment_date__isnull=False
+            ).aggregate(avg_quality=Avg("quality_rating"))["avg_quality"]
             or 0
         )
-        # Average Response Time
-        avg_response_time = (
+
+        # avg_response_time = (
+        #     vendor.purchase_orders.filter(acknowledgment_date__isnull=False)
+        #     .aggregate(avg_response=Avg(F("acknowledgment_date") - F("issue_date")))[
+        #         "avg_response"
+        #     ]
+        #     .total_seconds()
+        #     / 3600
+        #     if acknowledged_orders > 0
+        #     else 0
+        # )
+
+        avg_response_time_seconds = (
             vendor.purchase_orders.filter(acknowledgment_date__isnull=False)
             .aggregate(avg_response=Avg(F("acknowledgment_date") - F("issue_date")))[
                 "avg_response"
             ]
             .total_seconds()
-            / 3600
-            or 0
+            if acknowledged_orders > 0
+            else 0
         )
 
-        # Fulfillment Rate:
+        avg_response_time_hours = int(avg_response_time_seconds // 3600)
+        avg_response_time_minutes = int((avg_response_time_seconds % 3600) // 60)
+        avg_response_time_seconds = int(avg_response_time_seconds % 60)
+
+        avg_response_time = "{:02d}:{:02d}:{:02d}".format(
+            avg_response_time_hours,
+            avg_response_time_minutes,
+            avg_response_time_seconds,
+        )
+
         fulfilled_orders = vendor.purchase_orders.filter(
             status="completed", issue_date__isnull=False
         ).count()
         fulfillment_rate = (
-            (fulfilled_orders / total_orders) * 100 if total_orders > 0 else 0
+            (fulfilled_orders / acknowledged_orders) * 100
+            if acknowledged_orders > 0
+            else 0
         )
 
         performance_data = {
@@ -161,7 +193,6 @@ class VendorPerformanceAPIView(generics.RetrieveAPIView):
 class AcknowledgePurchaseOrder(APIView):
     """
     Acknowledge a purchase order.
-
     Acknowledges a specific purchase order by its ID.
     """
 
@@ -210,25 +241,35 @@ class AcknowledgePurchaseOrder(APIView):
         )
 
 
+class HistoricalPerformanceList(generics.ListAPIView):
+    """
+    Retrieve a list of historical performance records.
+    Retrieves a paginated list of all historical performance records.
+    """
+
+    queryset = HistoricalPerformance.objects.all()
+    serializer_class = HistoricalPerformanceSerializer
+
+
 # Token authentication
-class TokenObtainView(APIView):
+class TokenObtainView(generics.CreateAPIView):
     """
     Obtain authentication token.
-
     Obtain authentication token using provided username and password.
     """
 
-    def post(self, request):
+    serializer_class = UserCredentialsSerializer
 
-        serializer = UserCredentialsSerializer(data=request.data)
-        if serializer.is_valid():
-            username = serializer.validated_data.get("username")
-            password = serializer.validated_data.get("password")
-            user = authenticate(username=username, password=password)
-            if user:
-                token, created = Token.objects.get_or_create(user=user)
-                return JsonResponse({"token": token.key})
-            else:
-                return JsonResponse({"error": "Invalid credentials"}, status=400)
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        username = serializer.validated_data.get("username")
+        password = serializer.validated_data.get("password")
+        user = authenticate(username=username, password=password)
+        if user:
+            token, created = Token.objects.get_or_create(user=user)
+            return Response({"token": token.key})
         else:
-            return JsonResponse(serializer.errors, status=400)
+            return Response(
+                {"error": "Invalid credentials"}, status=HTTP_400_BAD_REQUEST
+            )
