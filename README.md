@@ -16,13 +16,43 @@ The Vendor Management System is a web application designed to manage vendors and
    ```bash
    git clone https://github.com/Swetha374/Vendor-Management-System.git
    cd Vendor-Management-System
+Optional) Set up a virtual environment (recommended):
+
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
 2.Install dependencies:
    pip install -r requirements.txt
 3.Database migrations:
    python manage.py makemigrations
    python manage.py migrate
-4.Run the server:
+4. Create a superuser (if needed for admin access):
+
+    ```bash
+    python manage.py createsuperuser
+    ```
+5.Run the server:
    python manage.py runserver
+
+## Running the Test Suite
+
+To run the test suite, execute the following command:
+
+```bash
+python manage.py test
+```
+This command will run all the test cases defined in the `tests.py` file.
+
+## Test Coverage
+
+The test suite covers various aspects of the Django REST API, including:
+
+- CRUD operations for vendors and purchase orders
+- Retrieving vendor performance data
+- Acknowledging purchase orders
+- Listing historical performance records
+
 
 ## Usage
 
